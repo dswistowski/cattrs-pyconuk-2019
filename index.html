@@ -4,14 +4,14 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-		<title>reveal.js</title>
+		<title>Typed attrs dataclasses with cattrs converters for JSON REST microservices</title>
 
 		<link rel="stylesheet" href="css/reset.css">
 		<link rel="stylesheet" href="css/reveal.css">
-		<link rel="stylesheet" href="css/theme/black.css">
+		<link rel="stylesheet" href="css/theme/pycon-uk-2019.css">
 
 		<!-- Theme used for syntax highlighting of code -->
-		<link rel="stylesheet" href="lib/css/monokai.css">
+		<link rel="stylesheet" href="lib/css/zenburn.css">
 
 		<!-- Printing and PDF exports -->
 		<script>
@@ -25,8 +25,626 @@
 	<body>
 		<div class="reveal">
 			<div class="slides">
-				<section>Slide 1</section>
-				<section>Slide 2</section>
+				<section class="inverted">
+					<h1>c?attrs</h1>
+					<h2>how use it with rest microservices</h2>
+				</section>
+				<section>
+                    <section>
+                        <h3>Microservice scope</h3>
+                        <pre><code data-trim data-noescape class="python">
+                            def update_user(
+                                update_user_request: JSON
+                            ) -> JSON:
+                                user_id: UUID = update_user_request['id']
+                                if blacklisted_username(update_user_request['username']):
+                                     raise ApiError(400, Error.BLACKLISTED)
+                                user_dict = db.users.get(user_id)
+                                user_dict = {**update_user_request, **user_dict}
+                                return db.users.save(**user_dict)
+
+                            rest_update_user = json_api(update_user)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h3>Need test</h3>
+                        <pre><code data-trim data-noescape class="python">
+                            def test_can_update_user(ensure_user, assert_user):
+                                user_id = uuid4()
+                                with ensure_user({
+                                    'id': user_id, 'username': 'old-username'
+                                }):
+                                    updated_user = update_user(
+                                        {'id': user_id, 'username': 'new-username'}
+                                    )
+                                    assert_user(
+                                        {'id': user_id, 'username': 'new-username'}
+                                    )
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h4>moar</h4>
+                        <pre><code data-trim data-noescape class="python">
+                            def test_update_user_should_fail_if_no_id():
+                                ...
+
+                            def test_update_user_should_fail_if_user_blacklisted():
+                                ...
+
+                            def test_update_user_should_fail_if_no_new_username():
+                                ...
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h4>are all cases covered?</h4>
+                        <pre><code data-trim data-noescape class="python">
+                            def blacklisted_username(
+                                username: str,
+                                blockers: Sequence[str]=DEFAULT_BLOCKERS
+                                blacklist: Set[str]=DEFAULT_BLACKLIST,
+                            ) -> bool:
+                                for blocker in blockers:
+                                    if blocker in username:
+                                        return True
+                                return username in blacklist
+                        </code></pre>
+                        <pre><code data-trim data-noescape class="python">
+                            update_user({'id': ANY, 'username': 3}) # 💣
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h1>What to do</h1>
+                        <h2>add new tests?</h2>
+                        <a href="http://mypy-lang.org/" target="_blank">mypy</a> - but to make it work we need types
+                    </section>
+                </section>
+                <section>
+                    <section>
+                        <h3>Let add some types</h3>
+                        <pre><code data-trim data-noescape class="python">
+                        def update_user(user: User) -> User:
+                            old_user = db.users.get(user.id)
+                            if blacklisted_username(user.username):
+                                raise ApiError(400, Error.BLACKLISTED)
+                            return db.users.save(old_user.update(user))
+
+                        rest_update_user = json_api(User, User)(update_user)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h3>Something simple</h3>
+                        <pre><code data-trim data-noescape class="python">
+                            class User(NamedTuple):
+                                id: UUID
+                                username: str
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h3>Maybe not...</h3>
+                        <ul>
+                            <li>no base class 👎</li>
+                            <li>no meta class 👎</li>
+                            <li>it's one type 👎</li>
+                        </ul>
+                        <pre><code data-trim data-noescape class="python">
+                            class A(NamedTuple):
+                                foo: str
+
+                            class B(NamedTuple):
+                                bar: str
+
+                            >>> A('unique?') == B('unique?')
+                            True
+                            </code></pre>
+                    </section>
+                    <section>
+                        <img data-src="images/table.jpg"/>
+                    </section>
+                    <section>
+                        <h2>Have a class</h2>
+                        <pre><code data-trim data-noescape class="python">
+                        class User:
+                            def __init__(
+                                self,
+                                id_: UUID,
+                                username: str
+                            ) -> None:
+                                self.id = id_
+                                self.username = username
+
+                            @classmethod
+                            def from_dict(cls, data: Dict[str, Any]) -> Message:
+                                return cls(UUID(data['id']), str(data['username']))
+                    </code></pre>
+                    </section>
+                    <section>
+                        <ul>
+                            <li>less unit tests ✅</li>
+                            <li>mypy is more happy ✅</li>
+                            <li>more memory 👎</li>
+                            <li>is mutable 👎</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <img width="50%" data-src="images/moar-cat.jpg"/>
+                        <h2>classes</h2>
+                    </section>
+                    <section>
+                        <pre><code data-trim data-noescape class="python">
+                        class User:
+                            __slots__ = ['id', 'username']
+
+                            def __repr__(self) -> str:
+                                ...
+                            def __eq__(self, other: Any) -> bool:
+                                ...
+                            def __ne__(self, othet, Any) -> bool:
+                                ...
+                       </code></pre>
+                    </section>
+                    <section>
+                        <ul>
+                            <li>data behave as expected ✅</li>
+                            <li>cannot add attribute on fly ✅</li>
+                            <li>still mutable 👎</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Props?</h2>
+                        <pre><code data-trim data-noescape class="python">
+                    class User:
+                        ...
+                        @propery
+                        def id(self) -> UUID:
+                           ...
+                        @property
+                        def username(self) -> str:
+                           ...
+                        ...
+                    </code></pre>
+                    </section>
+
+                    <section>
+                        <ul>
+                            <li>immutable ✅</li>
+                            <li>attribute type written twice 👎</li>
+                            <li>our classes are huge now, so much to type/support 👎</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h1>Let's finish this madness</h1>
+                        and have some boilerplate
+                    </section>
+                </section>
+                <section>
+                    <section>
+                        <h1>📝 → 🏭 → 🚀</h1>
+                        <pre><code data-trim data-noescape class="python">
+                        def give_me_my_class(*fields: Field) -> Type:
+                            ...
+
+                        User = give_me_my_class(
+                                Field('id', UUID),
+                                Field('username', str),
+                        )
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>What to choose?</h2>
+                        <table>
+                            <thead>
+                            <tr>
+                                <th></th>
+                                <th>dataclasses</th>
+                                <th>attrs</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr>
+                                <th>python version</th>
+                                <td>3.7+</td>
+                                <td>2.7+</td>
+                            </tr>
+                            <tr>
+                                <th>flexibiliy</th>
+                                <td>⭐︎</td>
+                                <td>⭐︎⭐︎⭐︎</td>
+                            </tr>
+                            <tr>
+                                <th>build in?</th>
+                                <td>👍︎</td>
+                                <td>☹️︎</td>
+                            </tr>
+                            </tbody>
+                            </thead>
+                        </table>
+                    </section>
+                    <section>
+                        <h2>How to use?</h2>
+                        <pre><code data-trim data-noescape class="python">
+                        @attr.s
+                        class User:
+                            id: UUID = attr.ib()
+                            username: str = attr.ib()
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>How to use it like a pro?</h2>
+                        <pre><code data-trim data-noescape class="python">
+                        @attr.s(auto_attribs=True, frozen=True, slots=True)
+                        class User:
+                            id: UUID = attr.ib()
+                            username: str = attr.ib()
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Need default value?</h2>
+                        <pre><code data-trim data-noescape class="python">
+                        @attr.s
+                        class A:
+                            foo: str = attr.ib(default='default-string')
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Default value is an object?</h2>
+                        <pre><code data-trim data-noescape class="python">
+                        @attr.s
+                        class A:
+                            foo: Sequence[str] = attr.ib(factory=list)
+                        >>> A()
+                        A(foo='default-string')
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Cleanup inputs?</h2>
+                        <pre><code data-trim data-noescape class="python">
+                        @attr.s
+                        class A:
+                            foo: str = attr.ib(converter=lambda x: x*2)
+                        >>> Foo(3)
+                        Foo(a=6)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Validation?</h2>
+                        <pre><code data-trim data-noescape class="python">
+                            @attr.s
+                            class A:
+                                x: int = attr.ib()
+                                @x.validator
+                                def check(self, attribute, value):
+                                    if value != 42:
+                                        raise ValueError('Only 42 has meaning')
+
+                            >>> A(43)
+                            ValueError: Only 42 has meaning
+                        </code></pre>
+                    </section>
+                </section>
+                <section>
+                <section>
+                    <h1>Usable tools 🛠</h1>
+                </section>
+                <section>
+                    <h2>Check fields?</h2>
+                    <pre><code data-trim data-noescape class="python">
+                    @attr.s
+                    class A:
+                       foo: int = attr.ib()
+                       bar: str = attr.ib()
+
+                    >>> {f.name: f.type for f in attr.fields(A)}
+                    {f.name: f.type for f in attr.fields(A)}
+                    </code></pre>
+                </section>
+                <section>
+                    <h2>Class is immutable?</h2>
+                    <pre><code data-trim data-noescape class="python">
+                    @attr.s(frozen=True)
+                    class A:
+                       foo: int = attr.ib()
+                       bar: str = attr.ib()
+
+                    >>> attr.evolve(A(42, 'lorem'), bar='ipsum')
+                    A(foo=42, bar='ipsum')
+                    </code></pre>
+                </section>
+            </section>
+
+            <section>
+                <section>
+                    <h1>But we talk JSON 😞</h1>
+                </section>
+                <section>
+                    <h2>simplest way</h2>
+                    <pre><code data-trim data-noescape class="python">
+                            @attr.s
+                            class A:
+                                baz: str = attr.ib()
+
+                            @attr.s
+                            class B:
+                                foo: A = attr.ib()
+                                bar: int = attr.ib()
+
+                            >>> attr.asdict(B(A('me'), 42))
+                            {'foo': {'baz': 'me'}, 'bar': 42}
+                        </code></pre>
+                </section>
+                <section>
+                    <h2>universal structure function</h2>
+                    <pre><code data-trim data-noescape class="python">
+                        def structure(data, type_):
+                            return type_(**{
+                               t.name: structure(data[t.name], t.type) \
+                                   if hasattr(t.type, '__attrs_attrs__') \
+                                   else data[t.name]
+                               for t in attr.fields(type_)
+                            })
+                        >>> structure({'foo': {'baz': 'me'}, 'bar': 42}, B)
+                        B(bar=42, foo=A(baz='me'))
+                        </code></pre>
+                </section>
+
+                <section>
+                    <h2>but what with</h2>
+                    <pre><code data-trim data-noescape class="python">
+                        @attr.s
+                        class A:
+                            foo: str = attr.ib()
+
+                        @attr.s
+                        class B:
+                            bar: int = attr.ib()
+
+                        @attr.s
+                        class AB:
+                            baz: Union[A, B] = attr.ib()
+                    </code></pre>
+                </section>
+            </section>
+
+
+            <section>
+                <section>
+                    <h1>cattrs!</h1>
+                    <pre><code data-trim data-noescape class="python">
+                    >>> cattr.structure({'baz': {'bar': 42}}, AB)
+                    AB(baz=B(bar=42))
+
+                    >>> cattr.unstructure(AB(baz=B(bar=42)))
+                    {'baz': {'bar': 42}}
+                    </code></pre>
+                </section>
+                <section>
+                    <h2>please do not be too strict</h2>
+                    <pre><code data-trim data-noescape class="python">
+                    @attr.s
+                    class A:
+                        foo: str = attr.ib()
+                    >>> cattr.structure({'foo': 'bar', 'lorem': 'imsum'}, A)
+                    TypeError: __init__() got an unexpected keyword argument 'lorem'
+                    </code></pre>
+                    <h1>😞</h1>
+                </section>
+                <section>
+                    <h2>hooks</h2>
+                    <pre><code data-trim data-noescape class="python">
+                    def non_strict_attrs(data, type_):
+                        fields = {f.name for f in attr.fields(type_)}
+                        return cattr.structure_attrs_fromdict(
+                            {k: v for k,v in data.items() if k in fields},
+                            type_
+                        )
+                    cattr.register_structure_hook(A, non_strict_attrs)
+
+                    >>> cattr.structure({'foo': 'bar', 'lorem': 'imsum'}, A)
+                    A(foo='bar')
+                    </code></pre>
+                    <h2>🏆</h2>
+                </section>
+                <section>
+                    <h2>what about non attrs objects?</h2>
+                    <pre><code data-trim data-noescape class="python">
+                    def structure_datetime(date_string, _=None):
+                        return datetime.fromisoformat(date_string)
+
+                    cattr.register_structure_hook(datetime, structure_datetime)
+                    cattr.register_unstructure_hook(datetime, datetime.isoformat)
+
+                    >>> cattr.unstructure(datetime.now())
+                    '2019-03-21T10:30:00.000000'
+                    >>> cattr.structure('2019-03-21T10:30:00.000000', datetime)
+                    datetime.datetime(2019, 3, 21, 10, 30)
+                    </code></pre>
+                </section>
+                <section>
+                    <img data-src="images/big-win.jpg"/>
+                </section>
+                <section>
+                    <h2>ok but: 💣</h2>
+                    <pre><code data-trim data-noescape class="python">
+                        @attr.s
+                        class A:
+                            foo: str = attr.ib()
+
+                        @attr.s
+                        class B:
+                            foo: int = attr.ib()
+
+                        @attr.s
+                        class AB:
+                            type: str = attr.ib()
+                            value: Union[A, B] = attr.ib()
+                        >>> cattr.structure({'type': 'A', 'value': {'foo': 42}}, AB)
+                        ValueError: &ltclass 'A'&gt has no usable unique attributes.
+                    </code></pre>
+                </section>
+                <section>
+
+                    <pre><code data-trim data-noescape class="python">
+                        @attr.s
+                        class AB:
+                            types = {'A': A, 'B': B}
+                            type: str = attr.ib()
+                            value: Union[A, B] = attr.ib()
+
+                            @staticmethod
+                            def structure(data, cls):
+                                value_cls = cls.types[data['type']]
+                                return cls(
+                                    type=data['type'],
+                                    value=cattr.structure(data['value'], value_cls)
+                                )
+                        cattr.register_structure_hook(AB, AB.structure)
+                    </code></pre>
+                </section>
+                <section>
+                    <h1>it works 💰</h1>
+                    <pre><code data-trim data-noescape class="python">
+
+                    >>> cattr.structure({'type': 'A', 'value': {'foo': 42}}, AB)
+                    AB(type='A', value=A(foo='42'))
+                    </code></pre>
+                </section>
+                <section>
+                    <h1>But can you hide details from type?</h1>
+                </section>
+                <section>
+                    <pre><code data-trim data-noescape class="python">
+                        class ValueType(Enum):
+                            A='a'
+                            B='b'
+
+                        class BaseValue:
+                            type: ClassVar[ValueType]
+                            type_mapping: Dict[ValueType, Type['BaseValue']] = {}
+
+                            def __init_subclass__(cls, type: ValueType) -> None:
+                                cls.type_mapping[type] = cls
+                                cls.type = type
+                            @staticmethod
+                            def for_type(type: ValueType) -> Type['BaseValue']:
+                                return BaseValue.type_mapping[type]
+
+                    </code></pre>
+                </section>
+                <section>
+                    <pre><code data-trim data-noescape class="python">
+                    @attr.s(auto_attribs=True, frozen=True)
+                    class A(BaseValue, type=ValueType.A):
+                        foo: str
+
+                    @attr.s(auto_attribs=True, frozen=True)
+                    class B(BaseValue, type=ValueType.B):
+                        foo: str
+
+                    @attr.s(auto_attribs=True, frozen=True)
+                    class AB:
+                        type: ValueType
+                        value: BaseValue
+                    </code></pre>
+                </section>
+                <section>
+                    <pre><code data-trim data-noescape class="python">
+                    class AB:
+                        ...
+                        @staticmethod
+                        def structure(data, cls):
+                            type = cattr.structure(data['type'], ValueType)
+
+                            return cls(
+                                type=type,
+                                value=cattr.structure(
+                                    data['value'],
+                                    BaseValue.for_type(type)
+                                )
+                            )
+                    cattr.register_structure_hook(AB, AB.structure)
+                    </code></pre>
+                </section>
+                <section>
+                    <pre><code data-trim data-noescape class="python">
+                    >>> cattr.structure({'type': 'a', 'value': {'foo': 42}}, AB)
+                    AB(type=&ltValueType.A: 'a'&gt, value=A(foo='42'))
+                    </code></pre>
+                </section>
+                <section>
+                    <h2>Bonus</h2>
+                    <h3>Make sure each ValueType has implementation</h3>
+                    <pre><code data-trim data-noescape class="python">
+                    @pytest.mark.parametrize('value_type', ValueType)
+                    def test_all_value_types_should_be_implemented(value_type):
+                        bv = BaseValue.for_type(value_type)
+                        assert issubclass(bv, BaseValue)
+                    </code></pre>
+                </section>
+            </section>
+            <section>
+                <section>
+                    <h3>The converter is global 😳</h3>
+                    <img data-src="images/kill-with-fire.jpg"/>
+                </section>
+                <section>
+                    <h2>🥰</h2>
+                    <pre><code data-trim data-noescape class="python">
+                    from cattr import Converter
+                    _c = Converter()
+
+                    unstructure = _c.unstructure
+                    structure = converter.structure
+                    register_structure_hook = _c.register_structure_hook
+                    register_unstructure_hook = _c.register_unstructure_hook
+
+                    def simple_struct(data, klass):
+                        return klass(data)
+
+                    register_structure_hook(Decimal, simple_struct)
+                    register_unstructure_hook(Decimal, str)
+                    ...
+                    </code></pre>
+                </section>
+            </section>
+            <section>
+                <section>
+                    <h3>Back to start:</h3>
+                    <pre><code data-trim data-noescape class="python">
+                    def update_user(user: User) -> User:
+                        old_user = db.users.get(user.id)
+                        if blacklisted_username(user.username):
+                            raise ApiError(400, Error.BLACKLISTED)
+                        return db.users.save(old_user.update(user))
+
+                    rest_update_user = json_api(User, User)(update_user)
+                    </code></pre>
+                </section>
+                <section>
+                    <h3>Some 🧙‍♂️</h3>
+                    <pre><code data-trim data-noescape class="python">
+                        T, K = TypeVar('T'), TypeVar('K')
+                        JSONView = Callable[[JSON], JSON]
+                        def json_api(
+                            in_type: T, out_type: K
+                        ) -> Callable[[Callable[[T], K]], JSONView]:
+                            def decorator(f: Callable[[T], K]) -> JSONView:
+                                @wraps(f)
+                                def wrapper(in_: JSON) -> JSON:
+                                    in_data = structure(in_, in_type)
+                                    try:
+                                       return unstructure(f(in_data))
+                                    except APIError:
+                                       ...
+
+                    </code></pre>
+                </section>
+                <section>
+                    <h1>Final stack</h1>
+                    <pre><code data-trim data-noescape class="python">
+                        [put svg diagram here]
+                        str -> JSON -> request object -> view -> response object -> JSON -> str
+                    </code></pre>
+                </section>
+            </section>
 			</div>
 		</div>
 
@@ -37,11 +655,18 @@
 			// - https://github.com/hakimel/reveal.js#configuration
 			// - https://github.com/hakimel/reveal.js#dependencies
 			Reveal.initialize({
+				controlsTutorial: false,
+				progress: true,
+				slideNumber: true,
+				history: true,
+                width: 960,
+                height: 540,
+
 				dependencies: [
 					{ src: 'plugin/markdown/marked.js' },
 					{ src: 'plugin/markdown/markdown.js' },
 					{ src: 'plugin/notes/notes.js', async: true },
-					{ src: 'plugin/highlight/highlight.js', async: true }
+					{ src: 'plugin/highlight/highlight.js', async: true },
 				]
 			});
 		</script>
