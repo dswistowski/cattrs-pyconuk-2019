@@ -20,7 +20,7 @@ jobs:
       run: |
         npm install
         npm run build 
-    - uses: dswistowski/surge-action@v1
+    - uses: dswistowski/surge-sh-action@v1
       with:
         domain: 'debonair-mitten.surge.sh'
         project: '.'
