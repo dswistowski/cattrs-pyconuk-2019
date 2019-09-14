@@ -1,0 +1,30 @@
+name: Deploy slides
+
+on:
+  push:
+    branches:
+    - master
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Use Node.js 
+      uses: actions/setup-node@v1
+      with:
+        node-version: 12.x
+    - name: npm install, build
+      run: |
+        npm install
+        npm run build 
+    - uses: dswistowski/surge-action@v1
+      with:
+        domain: 'debonair-mitten.surge.sh'
+        project: '.'
+        login: ${{ secrets.surge_login }}
+        password: ${{ secrets.surge_password }}
+      env:
+        CI: true
