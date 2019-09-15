@@ -28,8 +28,8 @@
 				<section class="inverted">
 					<h1>c?attrs</h1>
 					<h2>how use it with rest microservices</h2>
-                    <p>damian@swistowski.org @dswistowski https://github.com/dswistowski</p>
-                    <p>PyConUk 2019</p>
+                    <p>damian@swistowski.org https://github.com/dswistowski</p>
+                    <a href="https://bit.ly/pycon-cattrs">https://bit.ly/pycon-cattrs</a>
                     <aside class="notes">
                             I'm most the time wrong, sometime i'm right
                             do not like
@@ -58,9 +58,9 @@
                                 update_user_request: JSON,
                                 db: Database
                             ) -> JSON:
-                                user_id = UUID(update_user_request['id'])
                                 if blacklisted_username(update_user_request['username']):
                                      raise ApiError(400, Error.BLACKLISTED)
+                                user_id = UUID(update_user_request['id'])
                                 user_dict = db.get_user(user_id)
                                 user_dict = {**update_user_request, **user_dict}
                                 return db.update_user(**user_dict)
@@ -126,9 +126,9 @@
                         <h3>Let add some types</h3>
                         <pre><code data-trim data-noescape class="python">
                         def update_user(user: User) -> User:
-                            old_user = db.get_user(user.id)
                             if blacklisted_username(user.username):
                                 raise ApiError(400, Error.BLACKLISTED)
+                            old_user = db.get_user(user.id)
                             return db.update_user(old_user.update(user))
 
                         rest_update_user = json_api(User, User)(update_user)
@@ -176,7 +176,7 @@
                                 self.username = username
 
                             @classmethod
-                            def from_dict(cls, data: Dict[str, Any]) -> Message:
+                            def from_dict(cls, data: Mapping[str, Any]) -> 'User':
                                 return cls(UUID(data['id']), str(data['username']))
                     </code></pre>
                     </section>
@@ -185,7 +185,6 @@
                             <li>less unit tests ✅</li>
                             <li>mypy is more happy ✅</li>
                             <li><code>==</code> does not work 👎</li>
-                            <li>is mutable 👎</li>
                         </ul>
                     </section>
                     <section>
@@ -208,7 +207,7 @@
                     <section>
                         <ul>
                             <li>data behave as expected ✅</li>
-                            <li>cannot add attribute on fly ✅</li>
+                            <li>fixed set of attributes ✅</li>
                             <li>still mutable 👎</li>
                         </ul>
                     </section>
@@ -259,7 +258,6 @@
                             <tr>
                                 <th></th>
                                 <th><a href="https://github.com/avanov/typeit" target="_blank">typeit</a></th>
-                                <th><span style="font-size: 50%">marshmallow</span></th>
                                 <th>dataclasses</th>
                                 <th>attrs</th>
                             </tr>
@@ -267,21 +265,18 @@
                             <tbody>
                             <tr>
                                 <th>python version</th>
-                                <td></td>
-                                <td></td>
+                                <td>3.7+</td>
                                 <td>3.7+</td>
                                 <td>2.7+</td>
                             </tr>
                             <tr>
                                 <th>flexibiliy</th>
-                                <td>⭐︎⭐︎</td>
-                                <td>⭐︎⭐︎</td>
+                                <td>⭐︎︎</td>
                                 <td>⭐︎</td>
                                 <td>⭐︎⭐︎⭐︎</td>
                             </tr>
                             <tr>
                                 <th>build in?</th>
-                                <td>☹️︎</td>
                                 <td>☹️︎</td>
                                 <td>👍︎</td>
                                 <td>☹️︎</td>
@@ -304,8 +299,8 @@
                         <pre><code data-trim data-noescape class="python">
                         @attr.s(auto_attribs=True, frozen=True, slots=True)
                         class User:
-                            id: UUID = attr.ib()
-                            username: str = attr.ib()
+                            id: UUID
+                            username: str
                         </code></pre>
                     </section>
                     <section>
@@ -357,7 +352,7 @@
                     <h1>Usable tools 🛠</h1>
                 </section>
                 <section>
-                    <h2>Check fields?</h2>
+                    <h2>List fields?</h2>
                     <pre><code data-trim data-noescape class="python">
                     @attr.s
                     class A:
@@ -369,7 +364,7 @@
                     </code></pre>
                 </section>
                 <section>
-                    <h2>Class is immutable?</h2>
+                    <h2>Object is immutable?</h2>
                     <pre><code data-trim data-noescape class="python">
                     @attr.s(frozen=True)
                     class A:
@@ -454,7 +449,7 @@
                     class A:
                         foo: str = attr.ib()
                     >>> cattr.structure({'foo': 'bar', 'lorem': 'imsum'}, A)
-                    TypeError: __init__() got an unexpected keyword argument 'lorem'
+                    TypeError: __init__() got an unexpected keyword argument<br> 'lorem'
                     </code></pre>
                     <h1>😞</h1>
                 </section>
@@ -551,9 +546,9 @@
                             type: ClassVar[ValueType]
                             type_mapping: Dict[ValueType, Type['BaseValue']] = {}
 
-                            def __init_subclass__(cls, type: ValueType) -> None:
+                            def __init_subclass__(cls, type_: ValueType) -> None:
                                 cls.type_mapping[type] = cls
-                                cls.type = type
+                                cls.type = type_
                             @staticmethod
                             def for_type(type: ValueType) -> Type['BaseValue']:
                                 return BaseValue.type_mapping[type]
@@ -582,13 +577,13 @@
                         ...
                         @staticmethod
                         def structure(data, cls):
-                            type = cattr.structure(data['type'], ValueType)
+                            type_ = ValueType(data['type'])
 
                             return cls(
-                                type=type,
+                                type_=type_,
                                 value=cattr.structure(
                                     data['value'],
-                                    BaseValue.for_type(type)
+                                    BaseValue.for_type(type_)
                                 )
                             )
                     cattr.register_structure_hook(AB, AB.structure)
@@ -641,10 +636,10 @@
                     <h3>Back to start:</h3>
                     <pre><code data-trim data-noescape class="python">
                     def update_user(user: User) -> User:
-                        old_user = db.get_user(user.id)
                         if blacklisted_username(user.username):
                             raise ApiError(400, Error.BLACKLISTED)
-                        return db.update_userDEFAULT_BLOCKERS(old_user.update(user))
+                        old_user = db.get_user(user.id)
+                        return db.update_user(old_user.update(user))
 
                     rest_update_user = json_api(User, User)(update_user)
                     </code></pre>
@@ -666,13 +661,6 @@
                                     except APIError:
                                        ...
 
-                    </code></pre>
-                </section>
-                <section>
-                    <h1>Final stack</h1>
-                    <pre><code data-trim data-noescape class="python">
-                        [put svg diagram here]
-                        str -> JSON -> request object -> view -> response object -> JSON -> str
                     </code></pre>
                 </section>
             </section>
