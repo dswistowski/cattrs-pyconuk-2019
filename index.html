@@ -31,17 +31,38 @@
 				</section>
 				<section>
                     <section>
+                        <h1>Who am I?</h1>
+                        <h2>Damian</h2>
+
+                        <aside class="notes">
+                            I'm most the time wrong, sometime i'm right
+                            do not like
+                            <ul>
+                                <li>write documentation</li>
+                                <li>write code</li>
+                                <li>write tests</li>
+                            </ul>
+                            likes
+                            <ul>
+                                <li>read code</li>
+                                <li>delete code</li>
+                                <li>talk about code</li>
+                            </ul>
+                        </aside>
+                    </section>
+                    <section>
                         <h3>Microservice scope</h3>
                         <pre><code data-trim data-noescape class="python">
                             def update_user(
-                                update_user_request: JSON
+                                update_user_request: JSON,
+                                db: Database
                             ) -> JSON:
                                 user_id: UUID = update_user_request['id']
                                 if blacklisted_username(update_user_request['username']):
                                      raise ApiError(400, Error.BLACKLISTED)
-                                user_dict = db.users.get(user_id)
+                                user_dict = db.user_get(user_id)
                                 user_dict = {**update_user_request, **user_dict}
-                                return db.users.save(**user_dict)
+                                return db.user_update(**user_dict)
 
                             rest_update_user = json_api(update_user)
                         </code></pre>
@@ -49,15 +70,15 @@
                     <section>
                         <h3>Need test</h3>
                         <pre><code data-trim data-noescape class="python">
-                            def test_can_update_user(ensure_user, assert_user):
+                            def test_can_update_user(db: TestDatabase):
                                 user_id = uuid4()
-                                with ensure_user({
+                                with db.ensure_user({
                                     'id': user_id, 'username': 'old-username'
                                 }):
                                     updated_user = update_user(
-                                        {'id': user_id, 'username': 'new-username'}
+                                        {'id': user_id, 'username': 'new-username'}, db
                                     )
-                                    assert_user(
+                                    db.assert_user(
                                         {'id': user_id, 'username': 'new-username'}
                                     )
                         </code></pre>
@@ -103,10 +124,10 @@
                         <h3>Let add some types</h3>
                         <pre><code data-trim data-noescape class="python">
                         def update_user(user: User) -> User:
-                            old_user = db.users.get(user.id)
+                            old_user = db.user_get(user.id)
                             if blacklisted_username(user.username):
                                 raise ApiError(400, Error.BLACKLISTED)
-                            return db.users.save(old_user.update(user))
+                            return db.user_update(old_user.update(user))
 
                         rest_update_user = json_api(User, User)(update_user)
                         </code></pre>
@@ -610,16 +631,16 @@
                     <h3>Back to start:</h3>
                     <pre><code data-trim data-noescape class="python">
                     def update_user(user: User) -> User:
-                        old_user = db.users.get(user.id)
+                        old_user = db.user_get(user.id)
                         if blacklisted_username(user.username):
                             raise ApiError(400, Error.BLACKLISTED)
-                        return db.users.save(old_user.update(user))
+                        return db.user_update(old_user.update(user))
 
                     rest_update_user = json_api(User, User)(update_user)
                     </code></pre>
                 </section>
                 <section>
-                    <h3>Some 🧙‍♂️</h3>
+                    <h3>Some 🧙♂️</h3>
                     <pre><code data-trim data-noescape class="python">
                         T, K = TypeVar('T'), TypeVar('K')
                         JSONView = Callable[[JSON], JSON]
