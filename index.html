@@ -46,6 +46,10 @@
                             </ul>
                         </aside>
 				</section>
+                <section>
+                    <img src="images/babylon-logo.png" width="50%" style="border: none; box-shadow: none" />
+                    <p>“To put an accessible, affordable health service into the hands of every person on earth”</p>
+                </section>
 				<section>
                     <section>
                         <h3>Microservice scope</h3>
@@ -54,12 +58,12 @@
                                 update_user_request: JSON,
                                 db: Database
                             ) -> JSON:
-                                user_id: UUID = update_user_request['id']
+                                user_id = UUID(update_user_request['id'])
                                 if blacklisted_username(update_user_request['username']):
                                      raise ApiError(400, Error.BLACKLISTED)
-                                user_dict = db.user_get(user_id)
+                                user_dict = db.get_user(user_id)
                                 user_dict = {**update_user_request, **user_dict}
-                                return db.user_update(**user_dict)
+                                return db.update_user(**user_dict)
 
                             rest_update_user = json_api(update_user)
                         </code></pre>
@@ -96,10 +100,11 @@
                     <section>
                         <h4>are all cases covered?</h4>
                         <pre><code data-trim data-noescape class="python">
+                            DEFAULT_BLOCKERS = ['not-nice-preffix', 'not-nice-suffix']
                             def blacklisted_username(
                                 username: str,
                                 blockers: Sequence[str]=DEFAULT_BLOCKERS
-                                blacklist: Set[str]=DEFAULT_BLACKLIST,
+                                blacklist: Sequence[str]=DEFAULT_BLACKLIST,
                             ) -> bool:
                                 for blocker in blockers:
                                     if blocker in username:
@@ -121,10 +126,10 @@
                         <h3>Let add some types</h3>
                         <pre><code data-trim data-noescape class="python">
                         def update_user(user: User) -> User:
-                            old_user = db.user_get(user.id)
+                            old_user = db.get_user(user.id)
                             if blacklisted_username(user.username):
                                 raise ApiError(400, Error.BLACKLISTED)
-                            return db.user_update(old_user.update(user))
+                            return db.update_user(old_user.update(user))
 
                         rest_update_user = json_api(User, User)(update_user)
                         </code></pre>
@@ -179,7 +184,7 @@
                         <ul>
                             <li>less unit tests ✅</li>
                             <li>mypy is more happy ✅</li>
-                            <li>more memory 👎</li>
+                            <li><code>==</code> does not work 👎</li>
                             <li>is mutable 👎</li>
                         </ul>
                     </section>
@@ -254,7 +259,7 @@
                             <tr>
                                 <th></th>
                                 <th><a href="https://github.com/avanov/typeit" target="_blank">typeit</a></th>
-                                <th>m9w</th>
+                                <th><span style="font-size: 50%">marshmallow</span></th>
                                 <th>dataclasses</th>
                                 <th>attrs</th>
                             </tr>
@@ -269,8 +274,8 @@
                             </tr>
                             <tr>
                                 <th>flexibiliy</th>
-                                <td></td>
-                                <td></td>
+                                <td>⭐︎⭐︎</td>
+                                <td>⭐︎⭐︎</td>
                                 <td>⭐︎</td>
                                 <td>⭐︎⭐︎⭐︎</td>
                             </tr>
@@ -636,10 +641,10 @@
                     <h3>Back to start:</h3>
                     <pre><code data-trim data-noescape class="python">
                     def update_user(user: User) -> User:
-                        old_user = db.user_get(user.id)
+                        old_user = db.get_user(user.id)
                         if blacklisted_username(user.username):
                             raise ApiError(400, Error.BLACKLISTED)
-                        return db.user_update(old_user.update(user))
+                        return db.update_userDEFAULT_BLOCKERS(old_user.update(user))
 
                     rest_update_user = json_api(User, User)(update_user)
                     </code></pre>
