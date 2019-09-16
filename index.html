@@ -200,7 +200,7 @@
                                 ...
                             def __eq__(self, other: Any) -> bool:
                                 ...
-                            def __ne__(self, othet, Any) -> bool:
+                            def __ne__(self, other, Any) -> bool:
                                 ...
                        </code></pre>
                     </section>
@@ -341,8 +341,8 @@
                                 def check(self, attribute, value):
                                     if value != 42:
                                         raise ValueError('Only 42 has meaning')
-
-                            >>> A(43)
+                                y: int = attr.ib(validator=attr.validators.instance_of(int))
+                            >>> A(43, 13)
                             ValueError: Only 42 has meaning
                         </code></pre>
                     </section>
